@@ -1,6 +1,8 @@
 package fingrid.persistence.entities;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
@@ -18,6 +20,8 @@ public class Transaction {
     public Long id;
 
     @NotNull
+    @Min(0)
+    @Max(1000000)
     public BigDecimal amount;
 
     @NotNull
@@ -33,6 +37,7 @@ public class Transaction {
 
     @NotNull
     @Column(name = "year_month")
+    @Convert(converter = YearMonthConverter.class)
     public YearMonth yearMonth;
 
     @ManyToOne
@@ -67,5 +72,9 @@ public class Transaction {
         this.yearMonth = yearMonth;
         this.category = category;
         this.creator = creator;
+    }
+
+    public Set<User> getUsers() {
+        return users;
     }
 }

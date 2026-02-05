@@ -13,20 +13,23 @@
         <class>fingrid.persistence.entities.Transaction</class>
         <class>fingrid.persistence.entities.TransactionKind</class>
         <class>fingrid.persistence.entities.User</class>
+        <class>fingrid.persistence.entities.YearMonthConverter</class>
 
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver"/>
 
             <!-- Hibernate-specific properties -->
-            <property name="hibernate.hbm2ddl.auto" value="create-drop"/>
-            <property name="hibernate.show_sql" value="true"/>
-            <property name="hibernate.format_sql" value="true"/>
+            <property name="hibernate.hbm2ddl.auto" value="create"/>
+            <property name="hibernate.show_sql" value="false"/>
+            <property name="hibernate.format_sql" value="false"/>
 
             <!-- JDBC batch logging - shows actual batch operations -->
             <!-- <property name="hibernate.jdbc.batch_size" value="1000"/> -->
             <property name="hibernate.order_inserts" value="true"/>
             <property name="hibernate.order_updates" value="true"/>
             <property name="hibernate.jdbc.batch_versioned_data" value="true"/>
+
+            <property name="javax.persistence.validation.mode" value="AUTO"/>
 
             <!-- Enable statistics to see batch metrics -->
             <property name="hibernate.generate_statistics" value="true"/>

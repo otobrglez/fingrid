@@ -34,12 +34,13 @@
     <logger name="org.quartz" level="WARN"/>
 
     <logger name="org.hibernate" level="INFO"/>
-    <logger name="org.hibernate.SQL" level="DEBUG"/>
+    <logger name="org.hibernate.SQL" level="INFO"/>
+    <!--
     <logger name="org.hibernate.orm.jdbc.bind" level="TRACE"/>
     <logger name="org.hibernate.resource.transaction" level="DEBUG"/>
     <logger name="org.hibernate.engine.jdbc.batch.internal.BatchingBatch" level="DEBUG"/>
     <logger name="org.hibernate.stat" level="DEBUG"/>
-
+    -->
     <root level="${APP_LOG_LEVEL:-INFO}">
         <appender-ref ref="STDOUT"/>
         <!-- <appender-ref ref="Sentry"/> -->

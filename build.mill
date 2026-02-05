@@ -218,7 +218,7 @@ object `fingrid-persistence` extends JavaModule:
   )
 
   def mvnDeps = super.mvnDeps() ++ {
-    Dependencies.hibernate ++ Dependencies.h2Database ++ Dependencies.logbackClassic
+    Dependencies.hibernate ++ Dependencies.logbackClassic
   }
 
 object `zio-hibernate` extends FinGridScalaModule:
