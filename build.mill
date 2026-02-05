@@ -1,0 +1,315 @@
+//| mvnDeps: ["com.lihaoyi::mill-contrib-scalapblib:$MILL_VERSION"]
+package build
+
+import mill.*
+import scalalib.*
+import javalib.*
+import mill.javalib.TestModule.ZioTest
+import scalafmt.*
+// import publish.*
+import mill.api.PathRef
+import contrib.scalapblib.*
+// import sdl.ScalaTests
+
+val scalaPBMainVersion = "0.11.20"
+
+object Dependencies:
+  private object Versions:
+    val zioSchema      = "1.7.5"
+    val zio            = "2.1.23"
+    val zioLogging     = "2.5.3"
+    val zioHttp        = "3.7.4"
+    val circe          = "0.14.15"
+    val circeYaml      = "0.16.0"
+    val cats           = "2.13.0"
+    val catsEffect     = "3.6.3"
+    val zioCatsInterop = "23.1.0.12"
+    val cel            = "0.11.1"
+    val javaProtobuf   = "4.33.2"
+    val logbackClassic = "1.5.27"
+    val zioConfig      = "4.0.4"
+
+  val zio = Seq(
+    mvn"dev.zio::zio:${Versions.zio}",
+    mvn"dev.zio::zio-streams:${Versions.zio}"
+  )
+
+  val zioLogging = Set(
+    mvn"dev.zio::zio-logging:${Versions.zioLogging}",
+    mvn"dev.zio::zio-logging-slf4j2::${Versions.zioLogging}"
+  )
+
+  val zioConfig = Set(
+    mvn"dev.zio::zio-config:${Versions.zioConfig}",
+    mvn"dev.zio::zio-config-magnolia:${Versions.zioConfig}"
+  )
+
+  val logbackClassic = Set(
+    mvn"ch.qos.logback:logback-classic:${Versions.logbackClassic}",
+    mvn"org.fusesource.jansi:jansi:2.4.1"
+  )
+
+  val zioHttp = Seq(
+    mvn"dev.zio::zio-http:${Versions.zioHttp}"
+  )
+
+  val zioHttpTestKit = Seq(
+    mvn"dev.zio::zio-http-testkit:${Versions.zioHttp}"
+  )
+
+  val cats = Seq(
+    mvn"org.typelevel::cats-core:${Versions.cats}"
+  )
+
+  val catsEffect = Seq(
+    mvn"org.typelevel::cats-effect:${Versions.catsEffect}"
+  )
+  val zioInterop = Seq(
+    mvn"dev.zio::zio-interop-cats:${Versions.zioCatsInterop}"
+  )
+
+  val zioTest = Seq(
+    mvn"dev.zio::zio-test:${Versions.zio}",
+    mvn"dev.zio::zio-test-sbt:${Versions.zio}",
+    mvn"dev.zio::zio-test-magnolia:${Versions.zio}"
+  )
+
+  val zioSchema = Seq(
+    mvn"dev.zio::zio-schema:${Versions.zioSchema}",
+    mvn"dev.zio::zio-schema-json:${Versions.zioSchema}",
+    mvn"dev.zio::zio-schema-protobuf:${Versions.zioSchema}",
+    mvn"dev.zio::zio-schema-derivation:${Versions.zioSchema}"
+  )
+
+  val zioSchemaTest = Seq(
+    mvn"dev.zio::zio-schema-zio-test:${Versions.zioSchema}"
+  )
+
+  val circe = Seq(
+    mvn"io.circe::circe-core:${Versions.circe}",
+    mvn"io.circe::circe-parser:${Versions.circe}",
+    mvn"io.circe::circe-generic:${Versions.circe}"
+  )
+
+  val hibernate = Seq(
+    mvn"org.hibernate.orm:hibernate-core:7.2.3.Final",
+    mvn"org.hibernate.validator:hibernate-validator:8.0.3.Final",
+    mvn"org.glassfish:jakarta.el:4.0.2"
+  )
+
+  val hibernateTest = Seq(
+    mvn"org.hibernate.orm:hibernate-testing:5.6.7.Final"
+  )
+
+  val h2Database = Seq(
+    mvn"com.h2database:h2:2.3.232"
+  )
+
+  val postgresql = Seq(
+    mvn"org.postgresql:postgresql:42.7.9"
+  )
+
+/*
+val circeYAML = mvn"io.circe::circe-yaml-v12::${Versions.circeYaml}" :: Nil
+val cel       = mvn"dev.cel:cel::${Versions.cel}" :: Nil
+val scalaPBRuntime = mvn"com.thesamet.scalapb::scalapb-runtime:$scalaPBMainVersion" :: Nil
+val javaProtobuf = mvn"com.google.protobuf:protobuf-java:${Versions.javaProtobuf}" :: Nil
+ */
+
+object BuildConfig:
+  /** JVM options to silence Scala 3 LazyVals sun.misc.Unsafe deprecation warnings (JDK 21+) */
+  val lazyValsJvmArgs: Seq[String] = Seq(
+    "--enable-native-access=ALL-UNNAMED",
+    "--sun-misc-unsafe-memory-access=allow",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
+    "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-exports=java.base/sun.reflect.misc=ALL-UNNAMED"
+    // "-Djdk.reflect.useDirectMethodHandle=false",
+    // "-Djava.lang.invoke.stringConcat=BC_SB",
+    // "-XX:-PrintWarnings"
+    // "-XX:+IgnoreUnrecognizedVMOptions",
+  )
+
+/*
+trait ZIOTests extends ScalaTests:
+  override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Dependencies.zioTest
+  override def testFramework        = "zio.test.sbt.ZTestFramework"
+ */
+
+sealed trait FinGridScalaModule extends ScalaModule:
+  // override def forkArgs: T[Seq[String]] = BuildConfig.lazyValsJvmArgs
+  override def forkArgs = super.forkArgs() ++ BuildConfig.lazyValsJvmArgs
+
+  override def javacOptions = Seq("--release", "25")
+
+  def scalaVersion = "3.8.1"
+
+  override def scalacOptions = Seq(
+    "-encoding",
+    "utf-8",
+    "-feature",
+    "-language:implicitConversions",
+    "-language:higherKinds",
+    "-unchecked",
+    "-deprecation",
+    "-Xkind-projector"
+    // "-Yfuture-lazy-vals"
+  )
+
+trait YarnModule extends Module:
+  private def packageJson = Task.Source(moduleDir / "package.json")
+
+  private def yarnLock = Task.Source(moduleDir / "yarn.lock")
+
+  private def sources = Task.Source(moduleDir / "src")
+
+  private def public = Task.Source(moduleDir / "public")
+
+  private def configs = Task.Sources(
+    moduleDir / "package.json",
+    moduleDir / "yarn.lock",
+    moduleDir / "vite.config.ts",
+    moduleDir / "tsconfig.json"
+  )
+
+  def install = Task {
+    configs()
+    os.call(Seq("corepack", "yarn", "install"), cwd = moduleDir, stdout = os.Inherit, env = sys.env)
+    moduleDir / "node_modules"
+  }
+
+  def yarnRun(cmd: String, args: String*) = Task.Command {
+    install()
+    os.call(
+      Seq("corepack", "yarn", cmd) ++ args,
+      cwd = moduleDir,
+      stdout = os.Inherit,
+      env = sys.env
+    )
+  }
+
+  def bundle = Task {
+    install()
+    sources()
+    public()
+    configs()
+
+    os.call(Seq("corepack", "yarn", "build"), cwd = moduleDir, stdout = os.Inherit, env = sys.env)
+
+    val distDir = moduleDir / "dist"
+    if os.exists(distDir) then
+      os.copy.over(distDir, Task.dest)
+      os.remove.all(distDir)
+
+    PathRef(Task.dest)
+  }
+
+object persistence extends JavaModule:
+  def compileMvnDeps = super.compileMvnDeps() ++ Set(
+    mvn"org.hibernate.orm:hibernate-jpamodelgen:6.5.2.Final"
+  )
+
+  override def javacOptions = Seq(
+    "-proc:full",
+    "--release",
+    "25"
+  )
+
+  def mvnDeps = super.mvnDeps() ++ {
+    Dependencies.hibernate ++ Dependencies.h2Database ++ Dependencies.logbackClassic
+  }
+
+  object test extends TestModule.Junit4:
+    override def mvnDeps = super.mvnDeps() ++ { Dependencies.hibernateTest }
+
+object `zio-hibernate` extends FinGridScalaModule:
+  def mvnDeps = super.mvnDeps() ++ {
+    Dependencies.zio ++ Dependencies.zioLogging ++ Dependencies.hibernate
+  }
+
+  object test extends FinGridScalaModule, ScalaTests:
+    def mvnDeps = super.mvnDeps() ++ {
+      Dependencies.zioTest ++ Dependencies.h2Database ++ Dependencies.zioLogging ++ Dependencies.logbackClassic
+    }
+
+    def testFramework = "zio.test.sbt.ZTestFramework"
+
+object service extends FinGridScalaModule:
+  def moduleDeps = Seq(`zio-hibernate`, persistence)
+
+  def mvnDeps = super.mvnDeps() ++ {
+    Dependencies.zioConfig ++
+      Dependencies.logbackClassic ++ Dependencies.zio ++ Dependencies.zioHttp ++ Dependencies.zioLogging ++
+      Dependencies.postgresql
+  }
+
+  object test extends FinGridScalaModule, ScalaTests:
+    def mvnDeps = super.mvnDeps() ++ {
+      Dependencies.zioTest ++ Dependencies.zioHttpTestKit
+    }
+
+    def testFramework = "zio.test.sbt.ZTestFramework"
+
+/*
+object ast extends ScalaPBModule:
+  // README: https://mill-build.org/mill/contrib/scalapblib.html
+  def scalaVersion   = "3.7.4"
+  def scalaPBVersion = scalaPBMainVersion
+
+  override def scalaPBFlatPackage     = true
+  override def scalaPBJavaConversions = false
+  override def scalaPBGrpc            = false
+  override def scalaPBScala3Sources   = true
+  override def scalaPBSearchDeps      = true
+
+  // override def scalaPBOptions = "flat_package,java_conversions"
+
+  def mvnDeps =
+    super.mvnDeps() ++
+      Dependencies.zio ++
+      Dependencies.circe ++
+      Dependencies.circeYAML ++
+      Dependencies.scalaPBRuntime ++
+      Dependencies.javaProtobuf ++ Seq(
+        // mvn"com.thesamet.scalapb::scalapb-json4s:${scalaPBMainVersion}"
+      )
+
+object sdl extends ElasticSurveyModule:
+  def moduleDeps = Seq(ast)
+
+  def mvnDeps =
+    Dependencies.zio ++
+      Dependencies.circe ++
+      Dependencies.circeYAML ++
+      Dependencies.cel ++
+      Dependencies.javaProtobuf
+
+  object test extends ZIOTests
+
+object designer extends ElasticSurveyModule:
+  def moduleDeps = Seq(sdl)
+
+  def mvnDeps =
+    Dependencies.zio ++
+      Dependencies.zioHttp ++
+      Dependencies.circe ++
+      Dependencies.circeYAML
+
+  object test extends ZIOTests:
+    def mvnDeps = super.mvnDeps() ++ Dependencies.zioHttpTestKit
+
+object ui extends YarnModule:
+  def genProto() = Task.Command {
+    val protoDir = os.pwd / "ast" / "protobuf"
+    os.call(Seq("corepack", "yarn", "buf-generate"), cwd = moduleDir, stdout = os.Inherit, env = sys.env)
+  }
+
+  def dev()       = yarnRun("dev", "--host")
+  def preview()   = yarnRun("preview", "--host")
+  def build()     = yarnRun("build")
+  def buildOnly() = yarnRun("build-only")
+  def lint()      = yarnRun("lint")
+
+ */
