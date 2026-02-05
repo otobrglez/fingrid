@@ -206,7 +206,7 @@ trait YarnModule extends Module:
     PathRef(Task.dest)
   }
 
-object persistence extends JavaModule:
+object `fingrid-persistence` extends JavaModule:
   def compileMvnDeps = super.compileMvnDeps() ++ Set(
     mvn"org.hibernate.orm:hibernate-jpamodelgen:6.5.2.Final"
   )
@@ -221,9 +221,6 @@ object persistence extends JavaModule:
     Dependencies.hibernate ++ Dependencies.h2Database ++ Dependencies.logbackClassic
   }
 
-  object test extends TestModule.Junit4:
-    override def mvnDeps = super.mvnDeps() ++ { Dependencies.hibernateTest }
-
 object `zio-hibernate` extends FinGridScalaModule:
   def mvnDeps = super.mvnDeps() ++ {
     Dependencies.zio ++ Dependencies.zioLogging ++ Dependencies.hibernate
@@ -236,8 +233,8 @@ object `zio-hibernate` extends FinGridScalaModule:
 
     def testFramework = "zio.test.sbt.ZTestFramework"
 
-object service extends FinGridScalaModule:
-  def moduleDeps = Seq(`zio-hibernate`, persistence)
+object `fingrid-service` extends FinGridScalaModule:
+  def moduleDeps = Seq(`zio-hibernate`, `fingrid-persistence`)
 
   def mvnDeps = super.mvnDeps() ++ {
     Dependencies.zioConfig ++

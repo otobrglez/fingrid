@@ -4,11 +4,15 @@
              xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence https://jakarta.ee/xml/ns/persistence/persistence_3_0.xsd"
              version="3.0">
 
-    <persistence-unit name="Bookshelf" transaction-type="RESOURCE_LOCAL">
+    <persistence-unit name="Fingrid" transaction-type="RESOURCE_LOCAL">
         <provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
 
-        <class>fingrid.persistence.entities.Author</class>
-        <class>fingrid.persistence.entities.Book</class>
+        <class>fingrid.persistence.entities.Category</class>
+        <class>fingrid.persistence.entities.Currency</class>
+        <class>fingrid.persistence.entities.Namespace</class>
+        <class>fingrid.persistence.entities.Transaction</class>
+        <class>fingrid.persistence.entities.TransactionKind</class>
+        <class>fingrid.persistence.entities.User</class>
 
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver"/>
