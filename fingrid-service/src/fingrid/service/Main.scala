@@ -1,35 +1,30 @@
 package fingrid.service
 
+import fingrid.service.auth.*
+import jakarta.persistence.{EntityManagerFactory, Persistence}
 import zio.*
 import zio.Runtime.{removeDefaultLoggers, setConfigProvider}
-import zio.logging.backend.SLF4J
 import zio.hibernate.Hibernate
-import zio.hibernate.syntax.*
-import fingrid.persistence.entities.*
-import jakarta.persistence.{EntityManagerFactory, Persistence}
-import org.hibernate.Session
-
-import java.net.URI
+import zio.http.*
+import zio.logging.backend.SLF4J
 
 object Main extends ZIOAppDefault:
   override val bootstrap = setConfigProvider(ConfigProvider.envProvider) >>> removeDefaultLoggers >>> SLF4J.slf4j
 
   private def program = for
     _ <- ZIO.logInfo("Starting application...")
-    _ <- Hibernate.statistics.flatMap { stats =>
-           ZIO.logInfo(s"""
-                          |Batch Statistics:
-                          |  - Entity inserts: ${stats.getEntityInsertCount}
-                          |  - Prepared statements: ${stats.getPrepareStatementCount}
-                          |  - Connection obtains: ${stats.getConnectCount}
-       """.stripMargin)
-         }
-    _ <- ZIO.logInfo("Application startup complete!")
+    _ <- Server.serve(app)
   yield ()
 
+  private val app: Routes[AuthService & JwtService & Hibernate, Response] =
+    AuthRoutes.routes ++ AuthRoutes.protectedRoutes
+
   def run = program.provide(
+    Server.defaultWithPort(7778),
     Scope.default,
-    persistenceLayer >>> Hibernate.live
+    persistenceLayer >>> Hibernate.live,
+    ZLayer.fromZIO(JwtConfig.read.orDie) >>> JwtService.live,
+    AuthService.live
   )
 
   private def persistenceLayer: RLayer[Scope, EntityManagerFactory] = ZLayer.fromZIO:

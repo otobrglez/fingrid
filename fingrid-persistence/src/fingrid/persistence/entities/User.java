@@ -30,6 +30,10 @@ public class User {
     @NotNull
     public String rgbHashColor;
 
+    @NotNull
+    @Size(min = 60, max = 60)
+    public String passwordHash;
+
     @OneToMany(mappedBy = "owner")
     private Set<Namespace> ownedNamespaces = new HashSet<>();
 
@@ -49,5 +53,12 @@ public class User {
         this.name = name;
         this.email = email;
         this.rgbHashColor = rgbHashColor;
+    }
+
+    public User(String name, String email, String rgbHashColor, String passwordHash) {
+        this.name = name;
+        this.email = email;
+        this.rgbHashColor = rgbHashColor;
+        this.passwordHash = passwordHash;
     }
 }

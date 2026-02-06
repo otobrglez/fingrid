@@ -28,6 +28,8 @@ object Dependencies:
     val javaProtobuf   = "4.33.2"
     val logbackClassic = "1.5.27"
     val zioConfig      = "4.0.4"
+    val jwtScala       = "11.0.3"
+    val bcrypt         = "0.10.2"
 
   val zio = Seq(
     mvn"dev.zio::zio:${Versions.zio}",
@@ -107,6 +109,15 @@ object Dependencies:
 
   val postgresql = Seq(
     mvn"org.postgresql:postgresql:42.7.9"
+  )
+
+  val jwt = Seq(
+    mvn"com.github.jwt-scala::jwt-zio-json:${Versions.jwtScala}"
+
+  )
+
+  val bcrypt = Seq(
+    mvn"at.favre.lib:bcrypt:0.10.2"
   )
 
 /*
@@ -239,7 +250,7 @@ object `fingrid-service` extends FinGridScalaModule:
   def mvnDeps = super.mvnDeps() ++ {
     Dependencies.zioConfig ++
       Dependencies.logbackClassic ++ Dependencies.zio ++ Dependencies.zioHttp ++ Dependencies.zioLogging ++
-      Dependencies.postgresql
+      Dependencies.postgresql ++ Dependencies.jwt ++ Dependencies.bcrypt ++ Dependencies.zioSchema
   }
 
   object test extends FinGridScalaModule, ScalaTests:

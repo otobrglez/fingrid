@@ -115,6 +115,9 @@ final class Hibernate(
         session.clear()
       })
 
+  def attemptInTransaction[A](action: Session => A): Task[A] =
+    inTransaction(session => ZIO.attempt(action(session)))
+
   def inTransaction[R, A](action: Session => RIO[R, A]): RIO[R, A] = txContext.get.flatMap:
     case Some(ctx) =>
       ZIO.logDebug("Propagating existing transaction") *> action(ctx.session)
@@ -147,6 +150,9 @@ object Hibernate:
 
   def sessionFactory: URIO[Hibernate, SessionFactory] =
     ZIO.serviceWith[Hibernate](_.sessionFactory)
+
+  def attemptInTransaction[R, A](action: Session => A): RIO[Hibernate, A] =
+    ZIO.serviceWithZIO[Hibernate](_.attemptInTransaction(action))
 
   def inTransaction[R, A](f: Session => RIO[R, A]): RIO[R & Hibernate, A] =
     ZIO.serviceWithZIO[Hibernate](_.inTransaction(f))
