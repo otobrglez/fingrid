@@ -36,7 +36,9 @@ final case class JwtService(
         throw new Exception(s"Invalid token: ${error.getMessage}")
 
 object JwtService:
-  def validateToken(token: String): RIO[JwtService, JwtPayload]           = ZIO.serviceWithZIO[JwtService](_.validateToken(token))
+  def validateToken(token: String): RIO[JwtService, JwtPayload] =
+    ZIO.serviceWithZIO[JwtService](_.validateToken(token))
+
   def generateToken(userId: Long, email: String): RIO[JwtService, String] =
     ZIO.serviceWithZIO[JwtService](_.generateToken(userId, email))
 

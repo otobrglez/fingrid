@@ -12,42 +12,39 @@ final case class AuthService(
   private val bcryptHasher   = BCrypt.withDefaults()
   private val bcryptVerifier = BCrypt.verifyer()
 
-  def register(request: RegisterRequest): RIO[Hibernate, AuthResponse] = for
-    _ <- validateEmail(request.email) <&> validatePassword(request.password)
+  def register(request: RegisterRequest): RIO[Hibernate, AuthResponse] = Hibernate.inTransaction: session =>
+    for
+      _            <- validateEmail(request.email) <&> validatePassword(request.password)
+      existingUser <- ZIO.attempt {
+                        val query = session.createQuery[User]("SELECT u FROM User u WHERE u.email = :email")
+                        query.setParameter("email", request.email)
+                        query.getResultList.size() > 0
+                      }
+      _            <- ZIO.when(existingUser)(ZIO.fail(new Exception("Email already exists")))
+      passwordHash <- ZIO.attempt(bcryptHasher.hashToString(10, request.password.toCharArray))
+      user          = new User(request.name, request.email, request.rgbHashColor, passwordHash)
+      _            <- ZIO.attempt {
+                        session.persist(user)
+                        session.flush()
+                      }
+      token        <- jwtService.generateToken(user.id, user.email)
+    yield AuthResponse(token, user.id, user.email, user.name)
 
-    existingUser <-
-      Hibernate.attemptInTransaction { session =>
-        val query = session.createQuery[User]("SELECT u FROM User u WHERE u.email = :email")
-        query.setParameter("email", request.email)
-        query.getResultList.size() > 0
-      }
-    _            <- ZIO.when(existingUser)(ZIO.fail(new Exception("Email already exists")))
-    passwordHash <- ZIO.attempt(bcryptHasher.hashToString(10, request.password.toCharArray))
-    user          = new User(request.name, request.email, request.rgbHashColor, passwordHash)
-    savedUser    <-
-      Hibernate.attemptInTransaction(session =>
-        session.persist(user)
-        session.flush()
-        user
-      )
-    token        <- jwtService.generateToken(savedUser.id, savedUser.email)
-  yield AuthResponse(token, savedUser.id, savedUser.email, savedUser.name)
-
-  def login(request: LoginRequest): RIO[Hibernate, AuthResponse] = for
-    userOpt <-
-      Hibernate.attemptInTransaction { session =>
-        val query   = session.createQuery[User]("SELECT u FROM User u WHERE u.email = :email")
-        query.setParameter("email", request.email)
-        val results = query.getResultList
-        if results.size() > 0 then Some(results.get(0)) else None
-      }
-    user    <- ZIO.fromOption(userOpt).orElseFail(new Exception("Invalid credentials"))
-    _       <- ZIO.attempt {
-                 val result = bcryptVerifier.verify(request.password.toCharArray, user.passwordHash)
-                 if !result.verified then throw new Exception("Invalid credentials")
-               }
-    token   <- jwtService.generateToken(user.id, user.email)
-  yield AuthResponse(token, user.id, user.email, user.name)
+  def login(request: LoginRequest): RIO[Hibernate, AuthResponse] = Hibernate.inTransaction: session =>
+    for
+      userOpt <- ZIO.attempt {
+                   val query   = session.createQuery[User]("SELECT u FROM User u WHERE u.email = :email")
+                   query.setParameter("email", request.email)
+                   val results = query.getResultList
+                   if results.size() > 0 then Some(results.get(0)) else None
+                 }
+      user    <- ZIO.fromOption(userOpt).orElseFail(new Exception("Invalid credentials"))
+      _       <- ZIO.attempt {
+                   val result = bcryptVerifier.verify(request.password.toCharArray, user.passwordHash)
+                   if !result.verified then throw new Exception("Invalid credentials")
+                 }
+      token   <- jwtService.generateToken(user.id, user.email)
+    yield AuthResponse(token, user.id, user.email, user.name)
 
   def getUserById(userId: Long): RIO[Hibernate, Option[User]] =
     Hibernate.attemptInTransaction(_.maybeFind[User](userId))

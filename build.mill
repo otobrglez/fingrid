@@ -95,6 +95,8 @@ object Dependencies:
 
   val hibernate = Seq(
     mvn"org.hibernate.orm:hibernate-core:7.2.3.Final",
+    mvn"org.hibernate.orm:hibernate-hikaricp:7.2.3.Final",
+    mvn"com.zaxxer:HikariCP:7.0.2",
     mvn"org.hibernate.validator:hibernate-validator:8.0.3.Final",
     mvn"org.glassfish:jakarta.el:4.0.2"
   )

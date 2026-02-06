@@ -1,33 +1,24 @@
 package fingrid.service
 
+import fingrid.persistence.entities.*
 import zio.*
-import zio.test.*
 import zio.hibernate.Hibernate
 import zio.hibernate.syntax.*
-import fingrid.persistence.entities.*
-import jakarta.persistence.{EntityManagerFactory, Persistence}
-import zio.System.SystemLive
-import zio.logging.backend.SLF4J
-import zio.test.TestSystem.DefaultData
 
 import java.math.BigDecimal
-import java.net.URI
 import java.time.{LocalDateTime, YearMonth}
 import scala.util.Random
 
-object DataGenerationTest extends ZIOSpecDefault:
-
-  override val bootstrap: ZLayer[Any, Any, TestEnvironment] =
-    Runtime.setConfigProvider(ConfigProvider.envProvider) >>>
-      Runtime.removeDefaultLoggers >>>
-      SLF4J.slf4j >>>
-      testEnvironment
-
+final case class Seeder(
+  numberOfUsers: Int = 50,
+  numberOfTransactionsPerUser: Int = 300
+):
   private val categoryNames = List("Groceries", "Utilities", "Entertainment", "Transportation", "Healthcare")
 
   private def generateUser(index: Int): User =
     val rgbColor = f"#${Random.nextInt(256)}%02x${Random.nextInt(256)}%02x${Random.nextInt(256)}%02x"
-    User(s"User $index", s"user$index@example.com", rgbColor)
+    val hash     = (rgbColor * 10).take(60)
+    User(s"User $index", s"user$index@example.com", rgbColor, hash)
 
   private def generateNamespaces(user: User): (Namespace, Namespace) =
     (Namespace("Family", user), Namespace("Business", user))
@@ -51,25 +42,24 @@ object DataGenerationTest extends ZIOSpecDefault:
 
     // Assign transaction to some users
     val numUsers = Random.nextInt(users.length) + 1
-    Random.shuffle(users).take(numUsers).foreach { user =>
-      transaction.getUsers.add(user)
-    }
+    Random.shuffle(users).take(numUsers).foreach(transaction.getUsers.add)
 
     transaction
 
-  private def createTestData = Hibernate.inTransaction { session =>
+  def seed = Hibernate.inTransaction { session =>
     for
       _ <- ZIO.logInfo("Starting data generation...")
 
-      users <- ZIO.foreach((1 to 10).toList) { i =>
-                 for
-                   _   <- ZIO.unit
-                   user = generateUser(i)
-                   _   <- ZIO.logInfo(s"Creating user $i: ${user.name}")
-                   _   <- session.attemptPersist(user)
-                   _   <- ZIO.when(i % 10 == 0)(ZIO.logInfo(s"Created $i users") *> ZIO.attempt(session.flush()))
-                 yield user
-               }
+      users <-
+        ZIO.foreach((1 to numberOfUsers).toList) { i =>
+          for
+            _   <- ZIO.unit
+            user = generateUser(i)
+            _   <- ZIO.logInfo(s"Creating user $i: ${user.name}")
+            _   <- session.attemptPersist(user)
+            _   <- ZIO.when(i % 10 == 0)(ZIO.logInfo(s"Created $i users") *> ZIO.attempt(session.flush()))
+          yield user
+        }
 
       _ <- ZIO.logInfo("Creating namespaces and categories...")
 
@@ -91,7 +81,7 @@ object DataGenerationTest extends ZIOSpecDefault:
                allCategories = familyCategories ++ businessCategories
 
                // Create transactions per user
-               _ <- ZIO.foreachDiscard(1 to 100) { txIndex =>
+               _ <- ZIO.foreachDiscard(1 to numberOfTransactionsPerUser) { txIndex =>
                       val category    = allCategories(Random.nextInt(allCategories.length))
                       val transaction = generateTransaction(category, user, List(user), txIndex)
                       session.attemptPersist(transaction)
@@ -121,40 +111,3 @@ object DataGenerationTest extends ZIOSpecDefault:
            }
     yield ()
   }
-
-  /*
-  private def persistenceLayer: RLayer[Scope, EntityManagerFactory] = ZLayer.fromZIO {
-    for
-      props <- ZIO.succeed(new java.util.Properties())
-      _ = props.put("jakarta.persistence.jdbc.driver", "org.h2.Driver")
-      _ = props.put("jakarta.persistence.jdbc.url", "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1")
-      _ = props.put("jakarta.persistence.jdbc.user", "sa")
-      _ = props.put("jakarta.persistence.jdbc.password", "")
-      _ = props.put("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
-      _ = props.put("hibernate.hbm2ddl.auto", "create-drop")
-      _ = props.put("hibernate.show_sql", "false")
-      _ = props.put("hibernate.format_sql", "false")
-      factory <- ZIO.fromAutoCloseable(ZIO.attempt(Persistence.createEntityManagerFactory("Fingrid", props)))
-    yield factory
-  }
-   */
-
-  private def persistenceLayerPG: RLayer[Scope, EntityManagerFactory] = ZLayer.fromZIO:
-    for
-      appConfig <- AppConfig.read
-      props     <- ZIO.succeed(new java.util.Properties())
-      _          = props.put("jakarta.persistence.jdbc.user", appConfig.databaseUser)
-      _          = props.put("jakarta.persistence.jdbc.password", appConfig.databasePassword)
-      _          = props.put("jakarta.persistence.jdbc.url", appConfig.databaseUrl.toString)
-      factory   <- ZIO.fromAutoCloseable(ZIO.attempt(Persistence.createEntityManagerFactory("Fingrid", props)))
-    yield factory
-
-  def spec = suite("DataGenerationTest")(
-    test("create users with namespaces, categories, and transactions") {
-      for _ <- createTestData
-      yield assertCompletes
-    }
-  ).provide(
-    Scope.default,
-    persistenceLayerPG >>> Hibernate.live
-  ) @@ TestAspect.sequential @@ TestAspect.withLiveSystem @@ TestAspect.withLiveClock

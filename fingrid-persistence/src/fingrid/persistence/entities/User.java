@@ -49,13 +49,20 @@ public class User {
     public User() {
     }
 
+    /*
     public User(String name, String email, String rgbHashColor) {
         this.name = name;
         this.email = email;
         this.rgbHashColor = rgbHashColor;
     }
+    */
 
-    public User(String name, String email, String rgbHashColor, String passwordHash) {
+    public User(
+            String name,
+            String email,
+            String rgbHashColor,
+            String passwordHash
+    ) {
         this.name = name;
         this.email = email;
         this.rgbHashColor = rgbHashColor;

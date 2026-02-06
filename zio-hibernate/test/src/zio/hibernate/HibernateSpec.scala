@@ -398,8 +398,12 @@ object HibernateSpec extends ZIOSpecDefault:
           .property("hibernate.show_sql", "false")
           .property("hibernate.format_sql", "false")
           .property("hibernate.use_sql_comments", "false")
-          .property("hibernate.connection.pool_size", "20")
-          .property("hibernate.current_session_context_class", "thread")
+          // HikariCP connection pool
+          .property("hibernate.connection.provider_class", "org.hibernate.hikaricp.internal.HikariCPConnectionProvider")
+          .property("hibernate.hikari.minimumIdle", "5")
+          .property("hibernate.hikari.maximumPoolSize", "20")
+          .property("hibernate.hikari.connectionTimeout", "20000")
+          .property("hibernate.hikari.poolName", "HikariCP")
 
       ZIO.fromAutoCloseable(ZIO.succeed(config.createEntityManagerFactory()))
     }.flatten.flatMap { factory =>
