@@ -27,3 +27,8 @@ client_id={{keycloak_client_id}}&grant_type=refresh_token&refresh_token={{refres
 ### Get User Info from Keycloak
 GET {{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/userinfo
 Authorization: Bearer {{access_token}}
+
+
+### Get namespaces
+GET {{service_url}}/namespaces
+Authorization: Bearer {{access_token}}
