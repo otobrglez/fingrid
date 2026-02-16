@@ -18,7 +18,7 @@ final case class Seeder(
   private def generateUser(index: Int): User =
     val rgbColor = f"#${Random.nextInt(256)}%02x${Random.nextInt(256)}%02x${Random.nextInt(256)}%02x"
     val hash     = (rgbColor * 10).take(60)
-    User(s"User $index", s"user$index@example.com", rgbColor, hash)
+    User(s"user$index", s"user$index@example.com", rgbColor, hash)
 
   private def generateNamespaces(user: User): (Namespace, Namespace) =
     (Namespace("Family", user), Namespace("Business", user))
@@ -55,7 +55,7 @@ final case class Seeder(
           for
             _   <- ZIO.unit
             user = generateUser(i)
-            _   <- ZIO.logInfo(s"Creating user $i: ${user.name}")
+            _   <- ZIO.logInfo(s"Creating user $i: ${user.username}")
             _   <- session.attemptPersist(user)
             _   <- ZIO.when(i % 10 == 0)(ZIO.logInfo(s"Created $i users") *> ZIO.attempt(session.flush()))
           yield user

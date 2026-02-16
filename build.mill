@@ -1,35 +1,41 @@
-//| mvnDeps: ["com.lihaoyi::mill-contrib-scalapblib:$MILL_VERSION"]
+//| mvnDeps:
+//| - com.lihaoyi::mill-contrib-scalapblib:$MILL_VERSION
+//| - com.lihaoyi::mill-contrib-buildinfo:$MILL_VERSION
+//| - com.goyeau::mill-git::0.3.2
 package build
 
 import mill.*
 import scalalib.*
 import javalib.*
 import mill.javalib.TestModule.ZioTest
+import mill.contrib.buildinfo.BuildInfo
 import scalafmt.*
 // import publish.*
 import mill.api.PathRef
 import contrib.scalapblib.*
 // import sdl.ScalaTests
+import com.goyeau.mill.git.{GitVersionModule, GitVersionedPublishModule}
+import mill.scalalib.publish.*
 
 val scalaPBMainVersion = "0.11.20"
 
 object Dependencies:
   private object Versions:
-    val zioSchema      = "1.7.5"
-    val zio            = "2.1.23"
-    val zioLogging     = "2.5.3"
-    val zioHttp        = "3.7.4"
-    val circe          = "0.14.15"
-    val circeYaml      = "0.16.0"
+    val bcrypt         = "0.10.2"
     val cats           = "2.13.0"
     val catsEffect     = "3.6.3"
-    val zioCatsInterop = "23.1.0.12"
     val cel            = "0.11.1"
+    val circe          = "0.14.15"
+    val circeYaml      = "0.16.0"
     val javaProtobuf   = "4.33.2"
-    val logbackClassic = "1.5.27"
-    val zioConfig      = "4.0.4"
     val jwtScala       = "11.0.3"
-    val bcrypt         = "0.10.2"
+    val logbackClassic = "1.5.29"
+    val zio            = "2.1.24"
+    val zioCatsInterop = "23.1.0.12"
+    val zioConfig      = "4.0.6"
+    val zioHttp        = "3.8.1"
+    val zioLogging     = "2.5.3"
+    val zioSchema      = "1.8.0"
 
   val zio = Seq(
     mvn"dev.zio::zio:${Versions.zio}",
@@ -48,7 +54,7 @@ object Dependencies:
 
   val logbackClassic = Set(
     mvn"ch.qos.logback:logback-classic:${Versions.logbackClassic}",
-    mvn"org.fusesource.jansi:jansi:2.4.1"
+    mvn"org.fusesource.jansi:jansi:2.4.2"
   )
 
   val zioHttp = Seq(
@@ -94,11 +100,12 @@ object Dependencies:
   )
 
   val hibernate = Seq(
-    mvn"org.hibernate.orm:hibernate-core:7.2.3.Final",
-    mvn"org.hibernate.orm:hibernate-hikaricp:7.2.3.Final",
+    mvn"org.hibernate.orm:hibernate-core:7.2.4.Final",
+    mvn"org.hibernate.orm:hibernate-hikaricp:7.2.4.Final",
+    mvn"org.hibernate.validator:hibernate-validator:9.1.0.Final",
     mvn"com.zaxxer:HikariCP:7.0.2",
-    mvn"org.hibernate.validator:hibernate-validator:8.0.3.Final",
-    mvn"org.glassfish:jakarta.el:4.0.2"
+    // mvn"org.glassfish:jakarta.el:4.0.2"
+    mvn"org.glassfish.expressly:expressly:6.0.0"
   )
 
   val hibernateTest = Seq(
@@ -106,16 +113,15 @@ object Dependencies:
   )
 
   val h2Database = Seq(
-    mvn"com.h2database:h2:2.3.232"
+    mvn"com.h2database:h2:2.4.240"
   )
 
   val postgresql = Seq(
-    mvn"org.postgresql:postgresql:42.7.9"
+    mvn"org.postgresql:postgresql:42.7.10"
   )
 
   val jwt = Seq(
     mvn"com.github.jwt-scala::jwt-zio-json:${Versions.jwtScala}"
-
   )
 
   val bcrypt = Seq(
@@ -221,7 +227,7 @@ trait YarnModule extends Module:
 
 object `fingrid-persistence` extends JavaModule:
   def compileMvnDeps = super.compileMvnDeps() ++ Set(
-    mvn"org.hibernate.orm:hibernate-jpamodelgen:6.5.2.Final"
+    mvn"org.hibernate.orm:hibernate-jpamodelgen:7.2.4.Final"
   )
 
   override def javacOptions = Seq(
@@ -246,8 +252,35 @@ object `zio-hibernate` extends FinGridScalaModule:
 
     def testFramework = "zio.test.sbt.ZTestFramework"
 
+object info extends FinGridScalaModule with BuildInfo with GitVersionedPublishModule:
+  private val Description  = "A tool for financial management."
+  private val Developers   = Seq(Developer("otobrglez", "Oto Brglez", "https://github.com/otobrglez"))
+  private val Licences     = Seq(License.MIT)
+  private val Organization = "fingrid"
+  private val ProjectName  = "fingrid"
+  private val Url          = "https://github.com/otobrglez/fingrid"
+  private val VC           = VersionControl.github("otobrglez", "fingrid")
+
+  val buildInfoPackageName = "fingrid.info"
+
+  override def pomSettings = PomSettings(
+    description = Description,
+    organization = Organization,
+    url = Url,
+    licenses = Licences,
+    versionControl = VC,
+    developers = Developers
+  )
+
+  override def publishVersion = GitVersionModule.version(withSnapshotSuffix = true)()
+
+  def buildInfoMembers = Seq(
+    BuildInfo.Value("version", publishVersion()),
+    BuildInfo.Value("scalaVersion", scalaVersion())
+  )
+
 object `fingrid-service` extends FinGridScalaModule:
-  def moduleDeps = Seq(`zio-hibernate`, `fingrid-persistence`)
+  def moduleDeps = Seq(info, `zio-hibernate`, `fingrid-persistence`)
 
   def mvnDeps = super.mvnDeps() ++ {
     Dependencies.zioConfig ++

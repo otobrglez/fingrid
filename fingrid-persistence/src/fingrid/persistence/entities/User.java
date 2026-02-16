@@ -8,19 +8,20 @@ import jakarta.validation.constraints.Size;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    public Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    public UUID id;
 
     @NotNull
     @NotBlank(message = "Name is required")
     @Size(min = 2, max = 100)
-    public String name;
+    public String username;
 
     @NotNull
     @Column(unique = true)
@@ -49,21 +50,13 @@ public class User {
     public User() {
     }
 
-    /*
-    public User(String name, String email, String rgbHashColor) {
-        this.name = name;
-        this.email = email;
-        this.rgbHashColor = rgbHashColor;
-    }
-    */
-
     public User(
-            String name,
+            String username,
             String email,
             String rgbHashColor,
             String passwordHash
     ) {
-        this.name = name;
+        this.username = username;
         this.email = email;
         this.rgbHashColor = rgbHashColor;
         this.passwordHash = passwordHash;

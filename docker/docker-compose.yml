@@ -9,3 +9,33 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5439:5432"
+
+  keycloak:
+    build:
+      dockerfile: keycloak.Dockerfile
+    ports:
+      - "0.0.0.0:4040:8080"
+      - "0.0.0.0:4443:8443"
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN}
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://pg:5432/${KEYCLOAK_DB}
+      - KC_DB_USERNAME=${POSTGRES_USER}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+      - KC_HOSTNAME_STRICT=false
+      - KEYCLOAK_LOGLEVEL=INFO
+    command: 'start-dev'
+    depends_on:
+      - pg
+
+    healthcheck:
+      test: [ "CMD", "curl", "--head", "-fsS","http://localhost:9000/health/ready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s

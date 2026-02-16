@@ -10,6 +10,7 @@
         <class>fingrid.persistence.entities.Category</class>
         <class>fingrid.persistence.entities.Currency</class>
         <class>fingrid.persistence.entities.Namespace</class>
+        <class>fingrid.persistence.entities.RefreshToken</class>
         <class>fingrid.persistence.entities.Transaction</class>
         <class>fingrid.persistence.entities.TransactionKind</class>
         <class>fingrid.persistence.entities.User</class>
@@ -30,13 +31,13 @@
             <property name="hibernate.hikari.leakDetectionThreshold" value="60000"/>
 
             <!-- Hibernate-specific properties -->
-            <property name="hibernate.hbm2ddl.auto" value="create"/>
+            <property name="hibernate.hbm2ddl.auto" value="create-drop"/> <!-- was update -->
             <property name="hibernate.show_sql" value="false"/>
             <property name="hibernate.format_sql" value="false"/>
 
-            <!-- Connection and transaction settings -->
-            <property name="hibernate.connection.isolation" value="2"/> <!-- READ_COMMITTED -->
-            <property name="hibernate.connection.autocommit" value="false"/>
+            <!-- Connection and transaction settings
+            <property name="hibernate.connection.isolation" value="2"/>
+            <property name="hibernate.connection.autocommit" value="false"/> -->
 
             <!-- JDBC batch settings -->
             <property name="hibernate.jdbc.batch_size" value="50"/>

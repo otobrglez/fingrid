@@ -17,5 +17,6 @@ devenv.local.yaml
 
 .envrc
 
-out/
-.idea/
+# HTTP Client credentials
+requests/http-client.env.json
+requests/http-client.private.env.json
