@@ -2,15 +2,13 @@ package fingrid.service.services
 
 import fingrid.persistence.entities
 import fingrid.persistence.entities.Namespace
-import fingrid.service.authentication.AuthUser
+import zio.RIO
 import zio.hibernate.Hibernate
 import zio.hibernate.syntax.*
 import zio.schema.{DeriveSchema, Schema}
-import zio.{RIO, ZLayer}
 
 import java.time.Instant
 import java.util.UUID
-import scala.jdk.CollectionConverters.*
 
 object NamespacesRepository extends UserScopedRepository[NamespacesRepository.DTO.Namespace, Any]:
   object DTO:
@@ -42,32 +40,29 @@ object NamespacesRepository extends UserScopedRepository[NamespacesRepository.DT
            OR :user_id IN (SELECT c.id FROM n.collaborators c)"""
         )
         .setParameter("user_id", id)
-        .getResultList
-        .asScala
-        .toList
+        .asList
         .map(namespaceDBtoDTO)
 
   def findById(id: NamespaceID, userId: UserID): RIO[Hibernate, Option[DTO.Namespace]] =
     Hibernate.attemptInTransaction: session =>
       session.enableFilter("deletedNamespaceFilter")
-      Option(
-        session
-          .createQuery[entities.Namespace](
-            """FROM fingrid.persistence.entities.Namespace n
+      session
+        .createQuery[entities.Namespace](
+          """FROM fingrid.persistence.entities.Namespace n
                WHERE n.id = :namespace_id
                AND (n.owner.id = :user_id OR :user_id IN (SELECT c.id FROM n.collaborators c))"""
-          )
-          .setParameter("namespace_id", id)
-          .setParameter("user_id", userId)
-          .uniqueResult()
-      ).map(namespaceDBtoDTO)
+        )
+        .setParameter("namespace_id", id)
+        .setParameter("user_id", userId)
+        .maybeUniqueResult
+        .map(namespaceDBtoDTO)
 
   def create(data: DTO.CreateNamespace, userId: UserID): RIO[Hibernate, DTO.Namespace] =
     Hibernate.attemptInTransaction: session =>
       session.enableFilter("deletedNamespaceFilter")
 
       // Check if a namespace with the same name already exists for this user (case-insensitive)
-      val existing = Option(
+      val existing =
         session
           .createQuery[entities.Namespace](
             """FROM fingrid.persistence.entities.Namespace n
@@ -75,8 +70,7 @@ object NamespacesRepository extends UserScopedRepository[NamespacesRepository.DT
           )
           .setParameter("name", data.name)
           .setParameter("user_id", userId)
-          .uniqueResult()
-      )
+          .maybeUniqueResult
 
       if existing.isDefined then
         throw new IllegalArgumentException(s"Namespace with name '${data.name}' already exists")
@@ -92,7 +86,7 @@ object NamespacesRepository extends UserScopedRepository[NamespacesRepository.DT
       session.enableFilter("deletedNamespaceFilter")
 
       // Check if another namespace with the same name exists for this user (case-insensitive)
-      val existing = Option(
+      val existing =
         session
           .createQuery[entities.Namespace](
             """FROM fingrid.persistence.entities.Namespace n
@@ -101,42 +95,41 @@ object NamespacesRepository extends UserScopedRepository[NamespacesRepository.DT
           .setParameter("name", data.name)
           .setParameter("user_id", userId)
           .setParameter("namespace_id", id)
-          .uniqueResult()
-      )
+          .maybeUniqueResult
 
       if existing.isDefined then
         throw new IllegalArgumentException(s"Namespace with name '${data.name}' already exists")
 
-      Option(
-        session
-          .createQuery[entities.Namespace](
-            """FROM fingrid.persistence.entities.Namespace n
-               WHERE n.id = :namespace_id AND n.owner.id = :user_id"""
-          )
-          .setParameter("namespace_id", id)
-          .setParameter("user_id", userId)
-          .uniqueResult()
-      ).map: entity =>
-        entity.name = data.name
-        session.merge(entity)
-        session.flush()
-        namespaceDBtoDTO(entity)
+      session
+        .createQuery[entities.Namespace](
+          """FROM fingrid.persistence.entities.Namespace n
+             WHERE n.id = :namespace_id AND n.owner.id = :user_id"""
+        )
+        .setParameter("namespace_id", id)
+        .setParameter("user_id", userId)
+        .maybeUniqueResult
+        .map: entity =>
+          entity.name = data.name
+          session.merge(entity)
+          session.flush()
+          namespaceDBtoDTO(entity)
 
   def delete(id: NamespaceID, userId: UserID): RIO[Hibernate, Boolean] =
     Hibernate.attemptInTransaction: session =>
       session.enableFilter("deletedNamespaceFilter")
-      Option(
-        session
-          .createQuery[entities.Namespace](
-            """FROM fingrid.persistence.entities.Namespace n
+
+      val maybeNamespace = session
+        .createQuery[entities.Namespace](
+          """FROM fingrid.persistence.entities.Namespace n
                WHERE n.id = :namespace_id AND n.owner.id = :user_id"""
-          )
-          .setParameter("namespace_id", id)
-          .setParameter("user_id", userId)
-          .uniqueResult()
-      ) match
+        )
+        .setParameter("namespace_id", id)
+        .setParameter("user_id", userId)
+        .maybeUniqueResult
+
+      maybeNamespace match
+        case None         => false
         case Some(entity) =>
           session.remove(entity)
           session.flush()
           true
-        case None         => false

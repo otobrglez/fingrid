@@ -3,6 +3,7 @@ package zio
 import org.hibernate.Session
 import org.hibernate.query.Query
 
+import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.reflect.ClassTag
 
 package object hibernate:
@@ -22,5 +23,8 @@ package object hibernate:
         s.createQuery(queryString, m.runtimeClass.asInstanceOf[Class[T]])
 
       def attemptPersist[T <: AnyRef](entity: T): Task[Unit] = ZIO.attempt(s.persist(entity))
-        
-    
+
+    extension [R](query: Query[R])
+      def maybeUniqueResult: Option[R] = Option(query.uniqueResult)
+
+      def asList: List[R] = query.getResultList.asScala.toList
