@@ -15,8 +15,7 @@ import java.util.UUID;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    public UUID id;
+    public UUID id;  // Keycloak subject ID - no auto-generation
 
     @NotNull
     @NotBlank(message = "Name is required")
@@ -36,26 +35,28 @@ public class User {
     public String passwordHash;
 
     @OneToMany(mappedBy = "owner")
-    private Set<Namespace> ownedNamespaces = new HashSet<>();
+    public Set<Namespace> ownedNamespaces = new HashSet<>();
 
     @ManyToMany(mappedBy = "collaborators")
-    private Set<Namespace> collaboratingNamespaces = new HashSet<>();
+    public Set<Namespace> collaboratingNamespaces = new HashSet<>();
 
     @OneToMany(mappedBy = "creator")
-    private Set<Transaction> createdTransactions = new HashSet<>();
+    public Set<Transaction> createdTransactions = new HashSet<>();
 
     @ManyToMany(mappedBy = "users")
-    private Set<Transaction> transactions = new HashSet<>();
+    public Set<Transaction> transactions = new HashSet<>();
 
     public User() {
     }
 
     public User(
+            UUID id,
             String username,
             String email,
             String rgbHashColor,
             String passwordHash
     ) {
+        this.id = id;
         this.username = username;
         this.email = email;
         this.rgbHashColor = rgbHashColor;

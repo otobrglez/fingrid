@@ -22,4 +22,4 @@ object SeederTest extends ZIOSpecDefault:
   ).provide(
     Scope.default,
     TestPersistenceLayer.live >>> Hibernate.live
-  ) @@ TestAspect.sequential @@ TestAspect.withLiveSystem @@ TestAspect.withLiveClock
+  ) @@ TestAspect.sequential @@ TestAspect.withLiveSystem @@ TestAspect.withLiveClock @@ TestAspect.silentLogging

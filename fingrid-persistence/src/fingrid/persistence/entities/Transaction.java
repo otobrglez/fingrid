@@ -51,12 +51,12 @@ public class Transaction {
     @ManyToOne
     @JoinColumn(name = "category_id")
     @NotNull
-    private Category category;
+    public Category category;
 
     @ManyToOne
     @JoinColumn(name = "creator_id")
     @NotNull
-    private User creator;
+    public User creator;
 
     @ManyToMany
     @JoinTable(
@@ -64,7 +64,7 @@ public class Transaction {
         joinColumns = @JoinColumn(name = "transaction_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-    private Set<User> users = new HashSet<>();
+    public Set<User> users = new HashSet<>();
 
     @Column(name = "deleted_at")
     public Instant deletedAt;

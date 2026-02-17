@@ -1,7 +1,5 @@
 package fingrid.service
 
-import fingrid.service.BaseError.{AppError, AuthenticationError}
-import fingrid.service.clients.Keycloak
 import zio.{durationInt, URIO, ZIO}
 import zio.hibernate.Hibernate
 import zio.http.*
@@ -14,7 +12,10 @@ import zio.http.endpoint.openapi.*
 import zio.json.{jsonDiscriminator, jsonHintNames, SnakeCase}
 import zio.schema.{DeriveSchema, Schema}
 import zio.schema.annotation.discriminatorName
-
+import fingrid.service.services.*
+import fingrid.service.authentication.*
+import fingrid.service.clients.Keycloak
+import fingrid.persistence.entities.User
 import java.util.UUID
 
 @jsonHintNames(SnakeCase)
@@ -25,16 +26,14 @@ enum BaseError(error: String) extends Throwable(error):
   case AuthenticationError(error: String) extends BaseError(error)
 
 object BaseError:
-  given schema: Schema[BaseError]   = DeriveSchema.gen
-  given Schema[AppError]            = DeriveSchema.gen
-  given Schema[AuthenticationError] = DeriveSchema.gen
+  given schema: Schema[BaseError]                              = DeriveSchema.gen[BaseError]
+  given appErrorSchema: Schema[AppError]                       = DeriveSchema.gen[AppError]
+  given authenticationErrorSchema: Schema[AuthenticationError] = DeriveSchema.gen[AuthenticationError]
 
-object AppError:
-  given schema: Schema[AppError]            = DeriveSchema.gen
-  def fromThrowable(t: Throwable): AppError = BaseError.AppError(t.getMessage)
+  final def toAppError(th: Throwable): AppError = AppError(th.getMessage)
 
 object FingridServer:
-  import AppError.*, BaseError.*
+  import BaseError.*
 
   private val corsConfig: CorsConfig = CorsConfig(
     allowedOrigin = _ => Some(AccessControlAllowOrigin.All),
@@ -47,7 +46,7 @@ object FingridServer:
 
   private val getNamespacesEndpoint = Endpoint(RoutePattern.GET / "namespaces" ?? Doc.p("Get all namespaces"))
     .auth(AuthType.Bearer)
-    .out[List[DTO.Namespace]]
+    .out[List[NamespacesRepository.DTO.Namespace]]
     .outErrors[BaseError](
       HttpCodec.error[AppError](Status.BadRequest),
       HttpCodec.error[AuthenticationError](Status.Unauthorized)
@@ -56,7 +55,7 @@ object FingridServer:
   private val getNamespaceEndpoint =
     Endpoint(RoutePattern.GET / "namespaces" / PathCodec.uuid("id") ?? Doc.p("Get namespace by ID"))
       .auth(AuthType.Bearer)
-      .out[DTO.Namespace]
+      .out[NamespacesRepository.DTO.Namespace]
       .outErrors[BaseError](
         HttpCodec.error[AppError](Status.NotFound),
         HttpCodec.error[AuthenticationError](Status.Unauthorized)
@@ -64,8 +63,8 @@ object FingridServer:
 
   private val createNamespaceEndpoint = Endpoint(RoutePattern.POST / "namespaces" ?? Doc.p("Create namespace"))
     .auth(AuthType.Bearer)
-    .in[DTO.CreateNamespace]
-    .out[DTO.Namespace](Status.Created)
+    .in[NamespacesRepository.DTO.CreateNamespace]
+    .out[NamespacesRepository.DTO.Namespace](Status.Created)
     .outErrors[BaseError](
       HttpCodec.error[AppError](Status.BadRequest),
       HttpCodec.error[AuthenticationError](Status.Unauthorized)
@@ -74,8 +73,8 @@ object FingridServer:
   private val updateNamespaceEndpoint =
     Endpoint(RoutePattern.PATCH / "namespaces" / PathCodec.uuid("id") ?? Doc.p("Update namespace"))
       .auth(AuthType.Bearer)
-      .in[DTO.UpdateNamespace]
-      .out[DTO.Namespace]
+      .in[NamespacesRepository.DTO.UpdateNamespace]
+      .out[NamespacesRepository.DTO.Namespace]
       .outErrors[BaseError](
         HttpCodec.error[AppError](Status.NotFound),
         HttpCodec.error[AuthenticationError](Status.Unauthorized)
@@ -90,38 +89,39 @@ object FingridServer:
         HttpCodec.error[AuthenticationError](Status.Unauthorized)
       )
   private def getMeRoute              = getMe.implement: (_: Unit) =>
-    withContext((authUser: AuthUser) => authUser.toString)
+    withContext((user: User) => user.toString)
 
   private def getNamespaces = getNamespacesEndpoint.implement: (_: Unit) =>
-    withContext(NamespacesRepository.findByAuth).mapError(AppError.fromThrowable)
+    withContext((u: User) => NamespacesRepository.findByUser(u)).mapError(toAppError)
 
-  private def getNamespace = getNamespaceEndpoint.implement: (id: UUID) =>
-    withContext: (authUser: AuthUser) =>
+  private def getNamespace = getNamespaceEndpoint.implement: (id: NamespaceID) =>
+    withContext: (user: User) =>
       NamespacesRepository
-        .findById(id, authUser.userID)
-        .mapError(AppError.fromThrowable)
+        .findById(id, user.id)
+        .mapError(toAppError)
         .flatMap:
           case Some(ns) => ZIO.succeed(ns)
           case None     => ZIO.fail(BaseError.AppError(s"Namespace not found: $id"))
 
-  private def createNamespace = createNamespaceEndpoint.implement: (data: DTO.CreateNamespace) =>
-    withContext: (authUser: AuthUser) =>
-      NamespacesRepository.create(data, authUser.userID).mapError(AppError.fromThrowable)
+  private def createNamespace = createNamespaceEndpoint.implement: (data: NamespacesRepository.DTO.CreateNamespace) =>
+    withContext: (user: User) =>
+      NamespacesRepository.create(data, user.id).mapError(toAppError)
 
-  private def updateNamespace = updateNamespaceEndpoint.implement: (id: UUID, data: DTO.UpdateNamespace) =>
-    withContext: (authUser: AuthUser) =>
-      NamespacesRepository
-        .update(id, data, authUser.userID)
-        .mapError(AppError.fromThrowable)
-        .flatMap:
-          case Some(ns) => ZIO.succeed(ns)
-          case None     => ZIO.fail(BaseError.AppError(s"Namespace not found or not owned: $id"))
+  private def updateNamespace = updateNamespaceEndpoint.implement:
+    (id: NamespaceID, data: NamespacesRepository.DTO.UpdateNamespace) =>
+      withContext: (user: User) =>
+        NamespacesRepository
+          .update(id, data, user.id)
+          .mapError(toAppError)
+          .flatMap:
+            case Some(ns) => ZIO.succeed(ns)
+            case None     => ZIO.fail(BaseError.AppError(s"Namespace not found or not owned: $id"))
 
   private def deleteNamespace = deleteNamespaceEndpoint.implement: (id: UUID) =>
-    withContext: (authUser: AuthUser) =>
+    withContext: (user: User) =>
       NamespacesRepository
-        .delete(id, authUser.userID)
-        .mapError(AppError.fromThrowable)
+        .delete(id, user.id)
+        .mapError(toAppError)
         .flatMap: success =>
           if success then ZIO.succeed(true)
           else ZIO.fail(BaseError.AppError(s"Namespace not found or not owned: $id"))

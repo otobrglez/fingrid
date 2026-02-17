@@ -36,14 +36,14 @@ public class Namespace {
 
     @ManyToMany
     @JoinTable(
-        name = "namespace_collaborators",
-        joinColumns = @JoinColumn(name = "namespace_id"),
-        inverseJoinColumns = @JoinColumn(name = "user_id")
+            name = "namespace_collaborators",
+            joinColumns = @JoinColumn(name = "namespace_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-    private Set<User> collaborators = new HashSet<>();
+    public Set<User> collaborators = new HashSet<>();
 
     @OneToMany(mappedBy = "namespace")
-    private Set<Category> categories = new HashSet<>();
+    public Set<Category> categories = new HashSet<>();
 
     @Column(name = "deleted_at")
     public Instant deletedAt;

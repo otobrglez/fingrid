@@ -7,7 +7,9 @@ import zio.hibernate.Hibernate
 import zio.hibernate.syntax.*
 import zio.logging.backend.SLF4J
 import zio.test.*
-import zio.test.Assertion.*
+import fingrid.service.services.NamespacesRepository
+import NamespacesRepository.DTO
+import fingrid.persistence.entities.{Namespace, User}
 
 import java.util.UUID
 
@@ -19,10 +21,13 @@ object NamespacesRepositoryTest extends ZIOSpecDefault:
       SLF4J.slf4j >>>
       testEnvironment
 
-  // Helper to create a test user
+  // Helper to create a test user with unique email
   private def createTestUser(username: String, email: String): RIO[Hibernate, UUID] =
     Hibernate.attemptInTransaction: session =>
-      val user = entities.User(username, email, "#FF0000", "0" * 60)
+      val userId = UUID.randomUUID()
+      // Add UUID suffix to email to ensure uniqueness across all test files
+      val uniqueEmail = email.replace("@", s"+${userId.toString.take(8)}@")
+      val user   = entities.User(userId, username, uniqueEmail, "#FF0000", "0" * 60)
       session.persist(user)
       session.flush()
       user.id
@@ -30,17 +35,13 @@ object NamespacesRepositoryTest extends ZIOSpecDefault:
   // Helper to add collaborator to namespace
   private def addCollaborator(namespaceId: UUID, userId: UUID): RIO[Hibernate, Unit] =
     Hibernate.attemptInTransaction: session =>
-      val namespace = session.find(classOf[entities.Namespace], namespaceId)
-      val user      = session.find(classOf[entities.User], userId)
-
-      // Use reflection to access private collaborators field
-      val field         = classOf[entities.Namespace].getDeclaredField("collaborators")
-      field.setAccessible(true)
-      val collaborators = field.get(namespace).asInstanceOf[java.util.Set[entities.User]]
-      collaborators.add(user)
-
-      session.merge(namespace)
-      session.flush()
+      for
+        namespace <- session.maybeFind[entities.Namespace](namespaceId)
+        user      <- session.maybeFind[entities.User](userId)
+      yield
+        namespace.collaborators.add(user)
+        session.merge(namespace)
+        session.flush()
 
   def spec = suite("NamespacesRepositoryTest")(
     test("create - should create a new namespace for a user") {
@@ -177,6 +178,75 @@ object NamespacesRepositoryTest extends ZIOSpecDefault:
         userId  <- createTestUser("rachel", "rachel@example.com")
         deleted <- NamespacesRepository.delete(UUID.randomUUID(), userId)
       yield assertTrue(!deleted)
+    },
+    test("create - should fail when namespace name already exists for same owner") {
+      for
+        userId <- createTestUser("sam", "sam@example.com")
+        _      <- NamespacesRepository.create(DTO.CreateNamespace("Duplicate"), userId)
+        result <- NamespacesRepository.create(DTO.CreateNamespace("Duplicate"), userId).exit
+      yield assertTrue(result.isFailure)
+    },
+    test("create - should allow same namespace name for different owners") {
+      for
+        user1Id <- createTestUser("tom", "tom@example.com")
+        user2Id <- createTestUser("uma", "uma@example.com")
+        ns1     <- NamespacesRepository.create(DTO.CreateNamespace("Common Name"), user1Id)
+        ns2     <- NamespacesRepository.create(DTO.CreateNamespace("Common Name"), user2Id)
+      yield assertTrue(
+        ns1.name == "Common Name",
+        ns2.name == "Common Name",
+        ns1.id != ns2.id
+      )
+    },
+    test("create - should fail with case-insensitive duplicate (uppercase)") {
+      for
+        userId <- createTestUser("victor", "victor@example.com")
+        _      <- NamespacesRepository.create(DTO.CreateNamespace("testname"), userId)
+        result <- NamespacesRepository.create(DTO.CreateNamespace("TESTNAME"), userId).exit
+      yield assertTrue(result.isFailure)
+    },
+    test("create - should fail with case-insensitive duplicate (mixed case)") {
+      for
+        userId <- createTestUser("wendy", "wendy@example.com")
+        _      <- NamespacesRepository.create(DTO.CreateNamespace("MyNamespace"), userId)
+        result <- NamespacesRepository.create(DTO.CreateNamespace("mynamespace"), userId).exit
+      yield assertTrue(result.isFailure)
+    },
+    test("update - should fail when new name conflicts with existing namespace") {
+      for
+        userId <- createTestUser("xavier", "xavier@example.com")
+        ns1    <- NamespacesRepository.create(DTO.CreateNamespace("First"), userId)
+        ns2    <- NamespacesRepository.create(DTO.CreateNamespace("Second"), userId)
+        result <- NamespacesRepository.update(ns2.id, DTO.UpdateNamespace("First"), userId).exit
+      yield assertTrue(result.isFailure)
+    },
+    test("update - should fail with case-insensitive conflict") {
+      for
+        userId <- createTestUser("yara", "yara@example.com")
+        ns1    <- NamespacesRepository.create(DTO.CreateNamespace("ExistingName"), userId)
+        ns2    <- NamespacesRepository.create(DTO.CreateNamespace("OtherName"), userId)
+        result <- NamespacesRepository.update(ns2.id, DTO.UpdateNamespace("existingname"), userId).exit
+      yield assertTrue(result.isFailure)
+    },
+    test("update - should allow renaming to same name (same namespace)") {
+      for
+        userId  <- createTestUser("zara", "zara@example.com")
+        ns      <- NamespacesRepository.create(DTO.CreateNamespace("SameName"), userId)
+        updated <- NamespacesRepository.update(ns.id, DTO.UpdateNamespace("SameName"), userId)
+      yield assertTrue(
+        updated.isDefined,
+        updated.get.name == "SameName"
+      )
+    },
+    test("update - should allow renaming to same name with different case") {
+      for
+        userId  <- createTestUser("adam", "adam@example.com")
+        ns      <- NamespacesRepository.create(DTO.CreateNamespace("myspace"), userId)
+        updated <- NamespacesRepository.update(ns.id, DTO.UpdateNamespace("MySpace"), userId)
+      yield assertTrue(
+        updated.isDefined,
+        updated.get.name == "MySpace"
+      )
     }
   ).provideShared(
     Scope.default,

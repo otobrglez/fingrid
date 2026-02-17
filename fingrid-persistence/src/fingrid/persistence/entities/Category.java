@@ -32,10 +32,10 @@ public class Category {
     @ManyToOne
     @JoinColumn(name = "namespace_id")
     @NotNull
-    private Namespace namespace;
+    public Namespace namespace;
 
     @OneToMany(mappedBy = "category")
-    private Set<Transaction> transactions = new HashSet<>();
+    public Set<Transaction> transactions = new HashSet<>();
 
     @Column(name = "deleted_at")
     public Instant deletedAt;

@@ -30,7 +30,7 @@
             <property name="hibernate.hikari.leakDetectionThreshold" value="60000"/>
 
             <!-- Hibernate-specific properties -->
-            <property name="hibernate.hbm2ddl.auto" value="create-drop"/> <!-- was update -->
+            <property name="hibernate.hbm2ddl.auto" value="create-drop"/> <!-- create once at startup -->
             <property name="hibernate.show_sql" value="false"/>
             <property name="hibernate.format_sql" value="false"/>
 

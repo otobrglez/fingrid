@@ -7,6 +7,7 @@ import zio.hibernate.syntax.*
 
 import java.math.BigDecimal
 import java.time.{LocalDateTime, YearMonth}
+import java.util.UUID
 import scala.util.Random
 
 final case class Seeder(
@@ -16,9 +17,10 @@ final case class Seeder(
   private val categoryNames = List("Groceries", "Utilities", "Entertainment", "Transportation", "Healthcare")
 
   private def generateUser(index: Int): User =
+    val userId   = UUID.randomUUID()
     val rgbColor = f"#${Random.nextInt(256)}%02x${Random.nextInt(256)}%02x${Random.nextInt(256)}%02x"
     val hash     = (rgbColor * 10).take(60)
-    User(s"user$index", s"user$index@example.com", rgbColor, hash)
+    User(userId, s"user$index", s"user$index@example.com", rgbColor, hash)
 
   private def generateNamespaces(user: User): (Namespace, Namespace) =
     (Namespace("Family", user), Namespace("Business", user))
