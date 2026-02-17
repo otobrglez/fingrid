@@ -4,13 +4,20 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.SQLDelete;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
 @Entity
 @Table(name = "namespaces")
+@FilterDef(name = "deletedNamespaceFilter")
+@Filter(name = "deletedNamespaceFilter", condition = "deleted_at IS NULL")
+@SQLDelete(sql = "UPDATE namespaces SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 public class Namespace {
 
     @Id
@@ -38,9 +45,14 @@ public class Namespace {
     @OneToMany(mappedBy = "namespace")
     private Set<Category> categories = new HashSet<>();
 
-    public boolean deleted = false;
+    @Column(name = "deleted_at")
+    public Instant deletedAt;
 
     public Namespace() {
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     public Namespace(String name, User owner) {

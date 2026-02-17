@@ -4,13 +4,20 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.SQLDelete;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
 @Entity
 @Table(name = "categories")
+@FilterDef(name = "deletedCategoryFilter")
+@Filter(name = "deletedCategoryFilter", condition = "deleted_at IS NULL")
+@SQLDelete(sql = "UPDATE categories SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 public class Category {
 
     @Id
@@ -30,9 +37,14 @@ public class Category {
     @OneToMany(mappedBy = "category")
     private Set<Transaction> transactions = new HashSet<>();
 
-    public boolean deleted = false;
+    @Column(name = "deleted_at")
+    public Instant deletedAt;
 
     public Category() {
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     public Category(String name, Namespace namespace) {

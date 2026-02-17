@@ -7,11 +7,12 @@ import zio.hibernate.syntax.*
 import zio.{RIO, ZLayer}
 import zio.schema.{DeriveSchema, Schema}
 
+import java.time.Instant
 import java.util.UUID
 import scala.jdk.CollectionConverters.*
 
 object DTO:
-  final case class Namespace(id: UUID, name: String, deleted: Boolean)
+  final case class Namespace(id: UUID, name: String, deletedAt: Option[Instant])
   object Namespace:
     given schema: Schema[Namespace] = DeriveSchema.gen
 
@@ -25,7 +26,7 @@ object DTO:
 
 object Mapping:
   given namespaceDBtoDTO: Conversion[entities.Namespace, DTO.Namespace] = ns =>
-    DTO.Namespace(ns.id, ns.name, ns.deleted)
+    DTO.Namespace(ns.id, ns.name, Option(ns.deletedAt))
 
 type UserID      = UUID
 type NamespaceID = UUID
@@ -38,8 +39,9 @@ object NamespacesRepository extends UserScopedRepository[DTO.Namespace, Any]:
   import Mapping.given
 
   def findByUser(id: UserID): RIO[Hibernate, List[DTO.Namespace]] =
-    Hibernate.attemptInTransaction:
-      _.createQuery[entities.Namespace](
+    Hibernate.attemptInTransaction: session =>
+      session.enableFilter("deletedNamespaceFilter")
+      session.createQuery[entities.Namespace](
         """FROM fingrid.persistence.entities.Namespace n
            WHERE n.owner.id = :user_id
            OR :user_id IN (SELECT c.id FROM n.collaborators c)"""
@@ -52,6 +54,7 @@ object NamespacesRepository extends UserScopedRepository[DTO.Namespace, Any]:
 
   def findById(id: NamespaceID, userId: UserID): RIO[Hibernate, Option[DTO.Namespace]] =
     Hibernate.attemptInTransaction: session =>
+      session.enableFilter("deletedNamespaceFilter")
       Option(
         session
           .createQuery[entities.Namespace](
@@ -74,6 +77,7 @@ object NamespacesRepository extends UserScopedRepository[DTO.Namespace, Any]:
 
   def update(id: NamespaceID, data: DTO.UpdateNamespace, userId: UserID): RIO[Hibernate, Option[DTO.Namespace]] =
     Hibernate.attemptInTransaction: session =>
+      session.enableFilter("deletedNamespaceFilter")
       Option(
         session
           .createQuery[entities.Namespace](
@@ -91,13 +95,19 @@ object NamespacesRepository extends UserScopedRepository[DTO.Namespace, Any]:
 
   def delete(id: NamespaceID, userId: UserID): RIO[Hibernate, Boolean] =
     Hibernate.attemptInTransaction: session =>
-      val updated = session
-        .createQuery(
-          """UPDATE fingrid.persistence.entities.Namespace n
-             SET n.deleted = true
-             WHERE n.id = :namespace_id AND n.owner.id = :user_id"""
-        )
-        .setParameter("namespace_id", id)
-        .setParameter("user_id", userId)
-        .executeUpdate()
-      updated > 0
+      session.enableFilter("deletedNamespaceFilter")
+      Option(
+        session
+          .createQuery[entities.Namespace](
+            """FROM fingrid.persistence.entities.Namespace n
+               WHERE n.id = :namespace_id AND n.owner.id = :user_id"""
+          )
+          .setParameter("namespace_id", id)
+          .setParameter("user_id", userId)
+          .uniqueResult()
+      ) match
+        case Some(entity) =>
+          session.remove(entity)
+          session.flush()
+          true
+        case None => false

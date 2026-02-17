@@ -4,8 +4,12 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.SQLDelete;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.HashSet;
@@ -14,6 +18,9 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "transactions")
+@FilterDef(name = "deletedTransactionFilter")
+@Filter(name = "deletedTransactionFilter", condition = "deleted_at IS NULL")
+@SQLDelete(sql = "UPDATE transactions SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 public class Transaction {
 
     @Id
@@ -59,9 +66,14 @@ public class Transaction {
     )
     private Set<User> users = new HashSet<>();
 
-    public boolean deleted = false;
+    @Column(name = "deleted_at")
+    public Instant deletedAt;
 
     public Transaction() {
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     public Transaction(BigDecimal amount, Currency currency, TransactionKind kind,

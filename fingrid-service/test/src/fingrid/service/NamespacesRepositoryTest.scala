@@ -50,7 +50,7 @@ object NamespacesRepositoryTest extends ZIOSpecDefault:
         result <- NamespacesRepository.create(data, userId)
       yield assertTrue(
         result.name == "Test Namespace",
-        !result.deleted,
+        result.deletedAt.isEmpty,
         result.id != null
       )
     },
@@ -148,14 +148,19 @@ object NamespacesRepositoryTest extends ZIOSpecDefault:
     },
     test("delete - should soft delete namespace for owner") {
       for
-        userId  <- createTestUser("oscar", "oscar@example.com")
-        created <- NamespacesRepository.create(DTO.CreateNamespace("To Delete"), userId)
-        deleted <- NamespacesRepository.delete(created.id, userId)
-        found   <- NamespacesRepository.findById(created.id, userId)
+        userId      <- createTestUser("oscar", "oscar@example.com")
+        created     <- NamespacesRepository.create(DTO.CreateNamespace("To Delete"), userId)
+        deleted     <- NamespacesRepository.delete(created.id, userId)
+        // After deletion, the entity should not be found with the filter active
+        found       <- NamespacesRepository.findById(created.id, userId)
+        // Verify it's actually soft deleted by checking without filter
+        softDeleted <- Hibernate.attemptInTransaction: session =>
+                         val entity = session.find(classOf[entities.Namespace], created.id)
+                         Option(entity).map(_.deletedAt != null)
       yield assertTrue(
         deleted,
-        found.isDefined,
-        found.get.deleted
+        found.isEmpty, // Should not be found with filter active
+        softDeleted.contains(true) // But should exist with deletedAt set
       )
     },
     test("delete - should return false for non-owner") {
@@ -176,4 +181,7 @@ object NamespacesRepositoryTest extends ZIOSpecDefault:
   ).provideShared(
     Scope.default,
     TestPersistenceLayer.live >>> Hibernate.live
-  ) @@ TestAspect.sequential @@ TestAspect.withLiveSystem @@ TestAspect.withLiveClock
+  ) @@ TestAspect.sequential
+    @@ TestAspect.withLiveSystem
+    @@ TestAspect.withLiveClock
+    @@ TestAspect.silentLogging
