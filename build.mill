@@ -1,21 +1,19 @@
 //| mvnDeps:
 //| - com.lihaoyi::mill-contrib-scalapblib:$MILL_VERSION
 //| - com.lihaoyi::mill-contrib-buildinfo:$MILL_VERSION
+//| - com.lihaoyi::mill-contrib-docker:$MILL_VERSION
 //| - com.goyeau::mill-git::0.3.2
 package build
 
-import mill.*
-import scalalib.*
-import javalib.*
+import mill.*, scalalib.*, javalib.*
 import mill.javalib.TestModule.ZioTest
 import mill.contrib.buildinfo.BuildInfo
 import scalafmt.*
-// import publish.*
 import mill.api.PathRef
 import contrib.scalapblib.*
-// import sdl.ScalaTests
 import com.goyeau.mill.git.{GitVersionModule, GitVersionedPublishModule}
 import mill.scalalib.publish.*
+import contrib.docker.DockerModule
 
 val scalaPBMainVersion = "0.11.20"
 
@@ -145,27 +143,16 @@ object BuildConfig:
     "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
     "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
     "--add-exports=java.base/sun.reflect.misc=ALL-UNNAMED"
-    // "-Djdk.reflect.useDirectMethodHandle=false",
-    // "-Djava.lang.invoke.stringConcat=BC_SB",
-    // "-XX:-PrintWarnings"
-    // "-XX:+IgnoreUnrecognizedVMOptions",
   )
 
-/*
-trait ZIOTests extends ScalaTests:
-  override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Dependencies.zioTest
-  override def testFramework        = "zio.test.sbt.ZTestFramework"
- */
-
 sealed trait FinGridScalaModule extends ScalaModule:
-  // override def forkArgs: T[Seq[String]] = BuildConfig.lazyValsJvmArgs
-  override def forkArgs = super.forkArgs() ++ BuildConfig.lazyValsJvmArgs
+  def forkArgs = super.forkArgs() ++ BuildConfig.lazyValsJvmArgs
 
-  override def javacOptions = Seq("--release", "25")
+  def javacOptions = Seq("--release", "25")
 
   def scalaVersion = "3.8.1"
 
-  override def scalacOptions = Seq(
+  def scalacOptions = Seq(
     "-encoding",
     "utf-8",
     "-feature",
@@ -231,7 +218,7 @@ object info extends FinGridScalaModule with BuildInfo with GitVersionedPublishMo
     BuildInfo.Value("scalaVersion", scalaVersion())
   )
 
-object `fingrid-service` extends FinGridScalaModule:
+object `fingrid-service` extends FinGridScalaModule with DockerModule:
   def moduleDeps = Seq(info, `zio-hibernate`, `fingrid-persistence`)
 
   def mvnDeps = super.mvnDeps() ++ {
@@ -239,6 +226,21 @@ object `fingrid-service` extends FinGridScalaModule:
       Dependencies.logbackClassic ++ Dependencies.zio ++ Dependencies.zioHttp ++ Dependencies.zioLogging ++
       Dependencies.postgresql ++ Dependencies.jwt ++ Dependencies.bcrypt ++ Dependencies.zioSchema
   }
+
+  object docker extends DockerConfig:
+    def baseImage    = "azul/zulu-openjdk:25-jre-headless-latest"
+    def tags         = List(
+      "ghcr.io/otobrglez/fingrid-service",
+      s"ghcr.io/otobrglez/fingrid-service:${GitVersionModule.version(withSnapshotSuffix = true)()}",
+      "fingrid-service:latest",
+      s"fingrid-service:${GitVersionModule.version(withSnapshotSuffix = true)()}"
+    )
+    def exposedPorts = Seq(7778)
+    def executable   = "docker"
+
+    def envVars = Map(
+      "JAVA_TOOL_OPTIONS" -> BuildConfig.lazyValsJvmArgs.mkString("\"", " ", "\"")
+    )
 
   object test extends FinGridScalaModule, ScalaTests:
     def mvnDeps = super.mvnDeps() ++ {
