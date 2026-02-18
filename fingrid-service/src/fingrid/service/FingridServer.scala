@@ -88,6 +88,56 @@ object FingridServer:
         HttpCodec.error[AppError](Status.NotFound),
         HttpCodec.error[AuthenticationError](Status.Unauthorized)
       )
+
+  private val getCategoriesEndpoint =
+    Endpoint(
+      RoutePattern.GET / "namespaces" / PathCodec.uuid("namespaceId") / "categories" ?? Doc.p(
+        "Get all categories for a namespace"
+      )
+    )
+      .auth(AuthType.Bearer)
+      .out[List[CategoriesRepository.DTO.Category]]
+      .outErrors[BaseError](
+        HttpCodec.error[AppError](Status.BadRequest),
+        HttpCodec.error[AuthenticationError](Status.Unauthorized)
+      )
+
+  private val getCategoryEndpoint =
+    Endpoint(RoutePattern.GET / "categories" / PathCodec.uuid("id") ?? Doc.p("Get category by ID"))
+      .auth(AuthType.Bearer)
+      .out[CategoriesRepository.DTO.Category]
+      .outErrors[BaseError](
+        HttpCodec.error[AppError](Status.NotFound),
+        HttpCodec.error[AuthenticationError](Status.Unauthorized)
+      )
+
+  private val createCategoryEndpoint = Endpoint(RoutePattern.POST / "categories" ?? Doc.p("Create category"))
+    .auth(AuthType.Bearer)
+    .in[CategoriesRepository.DTO.CreateCategory]
+    .out[CategoriesRepository.DTO.Category](Status.Created)
+    .outErrors[BaseError](
+      HttpCodec.error[AppError](Status.BadRequest),
+      HttpCodec.error[AuthenticationError](Status.Unauthorized)
+    )
+
+  private val updateCategoryEndpoint =
+    Endpoint(RoutePattern.PATCH / "categories" / PathCodec.uuid("id") ?? Doc.p("Update category"))
+      .auth(AuthType.Bearer)
+      .in[CategoriesRepository.DTO.UpdateCategory]
+      .out[CategoriesRepository.DTO.Category]
+      .outErrors[BaseError](
+        HttpCodec.error[AppError](Status.NotFound),
+        HttpCodec.error[AuthenticationError](Status.Unauthorized)
+      )
+
+  private val deleteCategoryEndpoint =
+    Endpoint(RoutePattern.DELETE / "categories" / PathCodec.uuid("id") ?? Doc.p("Delete category"))
+      .auth(AuthType.Bearer)
+      .out[Boolean]
+      .outErrors[BaseError](
+        HttpCodec.error[AppError](Status.NotFound),
+        HttpCodec.error[AuthenticationError](Status.Unauthorized)
+      )
   private def getMeRoute              = getMe.implement: (_: Unit) =>
     withContext((user: User) => user.toString)
 
@@ -126,6 +176,41 @@ object FingridServer:
           if success then ZIO.succeed(true)
           else ZIO.fail(BaseError.AppError(s"Namespace not found or not owned: $id"))
 
+  private def getCategories = getCategoriesEndpoint.implement: (namespaceId: NamespaceID) =>
+    withContext: (user: User) =>
+      CategoriesRepository.findByNamespace(namespaceId, user.id).mapError(toAppError)
+
+  private def getCategory = getCategoryEndpoint.implement: (id: CategoryID) =>
+    withContext: (user: User) =>
+      CategoriesRepository
+        .findById(id, user.id)
+        .mapError(toAppError)
+        .flatMap:
+          case Some(category) => ZIO.succeed(category)
+          case None           => ZIO.fail(BaseError.AppError(s"Category not found: $id"))
+
+  private def createCategory = createCategoryEndpoint.implement: (data: CategoriesRepository.DTO.CreateCategory) =>
+    withContext: (user: User) =>
+      CategoriesRepository.create(data, user.id).mapError(toAppError)
+
+  private def updateCategory = updateCategoryEndpoint.implement: (id: CategoryID, data: CategoriesRepository.DTO.UpdateCategory) =>
+    withContext: (user: User) =>
+      CategoriesRepository
+        .update(id, data, user.id)
+        .mapError(toAppError)
+        .flatMap:
+          case Some(category) => ZIO.succeed(category)
+          case None           => ZIO.fail(BaseError.AppError(s"Category not found or not owned: $id"))
+
+  private def deleteCategory = deleteCategoryEndpoint.implement: (id: UUID) =>
+    withContext: (user: User) =>
+      CategoriesRepository
+        .delete(id, user.id)
+        .mapError(toAppError)
+        .flatMap: success =>
+          if success then ZIO.succeed(true)
+          else ZIO.fail(BaseError.AppError(s"Category not found or not owned: $id"))
+
   private val openAPI =
     OpenAPIGen.fromEndpoints(
       title = "fingrid",
@@ -135,7 +220,12 @@ object FingridServer:
       getNamespaceEndpoint,
       createNamespaceEndpoint,
       updateNamespaceEndpoint,
-      deleteNamespaceEndpoint
+      deleteNamespaceEndpoint,
+      getCategoriesEndpoint,
+      getCategoryEndpoint,
+      createCategoryEndpoint,
+      updateCategoryEndpoint,
+      deleteCategoryEndpoint
     )
 
   private def publicRoutes: Routes[Any, Nothing]   = Routes(Method.GET / "" -> handler(Response.text(".")))
@@ -147,7 +237,12 @@ object FingridServer:
     getNamespace,
     createNamespace,
     updateNamespace,
-    deleteNamespace
+    deleteNamespace,
+    getCategories,
+    getCategory,
+    createCategory,
+    updateCategory,
+    deleteCategory
   ) @@ Middleware.debug @@ Authentication.protect @@ Middleware.timeout(3.seconds)
 
   private def serving: Routes[AppConfig & Hibernate & Keycloak, Response] =

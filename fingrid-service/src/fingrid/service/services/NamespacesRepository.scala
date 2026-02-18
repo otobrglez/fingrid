@@ -79,6 +79,15 @@ object NamespacesRepository extends UserScopedRepository[NamespacesRepository.DT
       val entity = entities.Namespace(data.name, user)
       session.persist(entity)
       session.flush()
+
+      val catA = entities.Category("Category A", entity)
+      val catB = entities.Category("Category B", entity)
+      val catC = entities.Category("Category C", entity)
+      session.persist(catA)
+      session.persist(catB)
+      session.persist(catC)
+      session.flush()
+
       namespaceDBtoDTO(entity)
 
   def update(id: NamespaceID, data: DTO.UpdateNamespace, userId: UserID): RIO[Hibernate, Option[DTO.Namespace]] =

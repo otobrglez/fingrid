@@ -55,6 +55,28 @@ object NamespacesRepositoryTest extends ZIOSpecDefault:
         result.id != null
       )
     },
+    test("create - should create two default categories (Income and Expense) for new namespace") {
+      for
+        userId     <- createTestUser("bob_cat", "bob_cat@example.com")
+        data        = DTO.CreateNamespace("Bob's Namespace")
+        namespace  <- NamespacesRepository.create(data, userId)
+        // Verify categories were created by querying them
+        categories <- Hibernate.attemptInTransaction: session =>
+                        session.enableFilter("deletedCategoryFilter")
+                        session
+                          .createQuery[entities.Category](
+                            """FROM fingrid.persistence.entities.Category c
+                               WHERE c.namespace.id = :namespace_id
+                               ORDER BY c.name"""
+                          )
+                          .setParameter("namespace_id", namespace.id)
+                          .asList
+      yield assertTrue(
+        categories.length == 2,
+        categories(0).name == "Expense",
+        categories(1).name == "Income"
+      )
+    },
     test("findById - should find namespace by id for owner") {
       for
         userId  <- createTestUser("bob", "bob@example.com")

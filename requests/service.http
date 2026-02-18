@@ -52,3 +52,42 @@ Content-Type: application/json
   "name": "Corporate"
 }
 
+> {%
+    client.global.set("namespace_id", response.body.id);
+%}
+
+### Get categories for a namespace
+GET {{service_url}}/namespaces/{{namespace_id}}/categories
+Authorization: Bearer {{access_token}}
+
+### Get category by ID
+GET {{service_url}}/categories/{{category_id}}
+Authorization: Bearer {{access_token}}
+
+### Create category
+POST {{service_url}}/categories
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "name": "Food & Groceries",
+  "namespace_id": "{{namespace_id}}"
+}
+
+> {%
+    client.global.set("category_id", response.body.id);
+%}
+
+### Update category
+PATCH {{service_url}}/categories/{{category_id}}
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "name": "Food & Dining"
+}
+
+### Delete category
+DELETE {{service_url}}/categories/{{category_id}}
+Authorization: Bearer {{access_token}}
+
